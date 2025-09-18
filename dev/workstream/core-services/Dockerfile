@@ -1,19 +1,39 @@
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Install build dependencies
+RUN npm install -g pnpm
+
+# Copy package files
+COPY package.json pnpm-lock.yaml* ./
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy source code
+COPY . .
+
+# Build TypeScript
+RUN pnpm run build
+
+# Production stage
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Install dependencies
-RUN apk add --no-cache python3 make g++
+# Install runtime dependencies
+RUN apk add --no-cache curl
 RUN npm install -g pnpm
 
 # Copy package files
-COPY package.json ./
+COPY package.json pnpm-lock.yaml* ./
 
-# Install dependencies
-RUN pnpm install
+# Install production dependencies only
+RUN pnpm install --frozen-lockfile --prod
 
-# Copy source code
-COPY . .
+# Copy built app from builder stage
+COPY --from=builder /app/dist ./dist
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
@@ -29,5 +49,5 @@ EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:3001/health || exit 1
 
-# Run with tsx directly (no build needed)
-CMD ["npx", "tsx", "src/index.ts"]
+# Use built JavaScript
+CMD ["node", "dist/index.js"]

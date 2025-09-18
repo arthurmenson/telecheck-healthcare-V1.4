@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { AuthController } from '@/controllers/auth.controller';
 import { AuthMiddleware } from '@/middleware/auth.middleware';
 import { RBACMiddleware } from '@/middleware/rbac.middleware';
@@ -10,9 +11,9 @@ export class AuthRoutes {
   private authMiddleware: AuthMiddleware;
   private rbacMiddleware: RBACMiddleware;
 
-  constructor() {
+  constructor(db: PostgresJsDatabase<any>) {
     this.router = Router();
-    this.authController = new AuthController();
+    this.authController = new AuthController(db);
     this.authMiddleware = new AuthMiddleware();
     this.rbacMiddleware = new RBACMiddleware();
     this.initializeRoutes();
@@ -51,12 +52,37 @@ export class AuthRoutes {
       this.authController.logout
     );
 
+    // Email verification and password reset routes
+    this.router.post(
+      '/verify-email',
+      ValidationMiddleware.sanitizeInput,
+      this.authController.verifyEmail
+    );
+
+    this.router.post(
+      '/request-password-reset',
+      ValidationMiddleware.sanitizeInput,
+      this.authController.requestPasswordReset
+    );
+
+    this.router.post(
+      '/reset-password',
+      ValidationMiddleware.sanitizeInput,
+      this.authController.resetPassword
+    );
+
     // Protected routes
     this.router.get(
       '/profile',
       this.authMiddleware.authenticate,
       this.rbacMiddleware.requirePermission('profile', 'read'),
       this.authController.profile
+    );
+
+    this.router.post(
+      '/logout-all',
+      this.authMiddleware.authenticate,
+      this.authController.logoutAll
     );
   }
 

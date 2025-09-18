@@ -75,29 +75,48 @@ export interface Program {
 
 // Authentication Service
 export class AuthService {
-  static async login(email: string, password: string): Promise<ApiResponse<{ user: User; token: string }>> {
+  static async login(email: string, password: string): Promise<ApiResponse<{ user: User; token: string; data: { accessToken: string; refreshToken: string; expiresIn: number } }>> {
     return apiClient.post(API_ENDPOINTS.AUTH.LOGIN, { email, password });
   }
 
   static async register(userData: {
     email: string;
     password: string;
-    name: string;
+    firstName?: string;
+    lastName?: string;
     role?: string;
-  }): Promise<ApiResponse<{ user: User; token: string }>> {
+  }): Promise<ApiResponse<{ data: { accessToken: string; refreshToken: string; expiresIn: number } }>> {
     return apiClient.post(API_ENDPOINTS.AUTH.REGISTER, userData);
   }
 
-  static async logout(): Promise<ApiResponse<void>> {
-    return apiClient.post(API_ENDPOINTS.AUTH.LOGOUT);
+  static async logout(refreshToken?: string): Promise<ApiResponse<void>> {
+    const token = refreshToken || localStorage.getItem('refresh_token');
+    return apiClient.post(API_ENDPOINTS.AUTH.LOGOUT, { refreshToken: token });
   }
 
-  static async refreshToken(): Promise<ApiResponse<{ token: string }>> {
-    return apiClient.post(API_ENDPOINTS.AUTH.REFRESH);
+  static async refreshToken(refreshToken?: string): Promise<ApiResponse<{ data: { accessToken: string; refreshToken: string; expiresIn: number } }>> {
+    const token = refreshToken || localStorage.getItem('refresh_token');
+    return apiClient.post(API_ENDPOINTS.AUTH.REFRESH, { refreshToken: token });
   }
 
-  static async resetPassword(email: string): Promise<ApiResponse<void>> {
-    return apiClient.post(API_ENDPOINTS.AUTH.RESET_PASSWORD, { email });
+  static async requestPasswordReset(email: string): Promise<ApiResponse<void>> {
+    return apiClient.post('/auth/request-password-reset', { email });
+  }
+
+  static async resetPassword(token: string, password: string): Promise<ApiResponse<void>> {
+    return apiClient.post('/auth/reset-password', { token, password });
+  }
+
+  static async verifyEmail(token: string): Promise<ApiResponse<void>> {
+    return apiClient.post(API_ENDPOINTS.AUTH.VERIFY_EMAIL, { token });
+  }
+
+  static async logoutAll(): Promise<ApiResponse<void>> {
+    return apiClient.post('/auth/logout-all');
+  }
+
+  static async getProfile(): Promise<ApiResponse<User>> {
+    return apiClient.get('/auth/profile');
   }
 }
 
@@ -313,6 +332,10 @@ export class FileService {
     return apiClient.get(API_ENDPOINTS.FILES.LIST);
   }
 }
+
+// Import additional services
+export { PatientService } from './patient.service';
+export { AppointmentService } from './appointment.service';
 
 // Export all services
 export {

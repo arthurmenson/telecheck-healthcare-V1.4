@@ -25,7 +25,7 @@ export interface User {
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string, role: UserRole) => Promise<boolean>;
-  logout: () => void;
+  logout: () => Promise<void>;
   isAuthenticated: boolean;
   isLoading: boolean;
   hasPermission: (permission: string) => boolean;
@@ -265,53 +265,44 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setIsLoading(true);
 
     try {
-      // Call the mock auth service
-      const response = await fetch('http://localhost:3001/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
+      // Call the auth service using the API client
+      const { AuthService } = await import('../services/api.service');
+      const authResponse = await AuthService.login(email, password);
 
-      if (!response.ok) {
-        console.error('Auth service returned error:', response.status);
-        setIsLoading(false);
-        return false;
-      }
-
-      const authData = await response.json();
-
-      if (!authData.token || !authData.user) {
-        console.error('Invalid response from auth service:', authData);
+      if (!authResponse.data || !authResponse.token || !authResponse.user) {
+        console.error('Invalid response from auth service:', authResponse);
         setIsLoading(false);
         return false;
       }
 
       // Map auth service user to frontend user format
       const authenticatedUser: User = {
-        id: authData.user.id,
-        email: authData.user.email,
-        name: authData.user.email.split('@')[0], // Use email prefix as name
-        role: authData.user.role as UserRole,
-        avatar: `/avatars/${authData.user.role}.jpg`,
-        permissions: getPermissionsForRole(authData.user.role),
+        id: authResponse.user.id,
+        email: authResponse.user.email,
+        name: authResponse.user.firstName ?
+          `${authResponse.user.firstName} ${authResponse.user.lastName}`.trim() :
+          authResponse.user.email.split('@')[0],
+        role: authResponse.user.role as UserRole,
+        avatar: `/avatars/${authResponse.user.role}.jpg`,
+        permissions: getPermissionsForRole(authResponse.user.role),
         organization: "Spark Den Healthcare",
-        license: authData.user.role === 'doctor' ? 'MD-123456' : undefined,
-        specialization: authData.user.role === 'doctor' ? 'Internal Medicine' : undefined,
-        isActive: true,
+        license: authResponse.user.role === 'doctor' ? 'MD-123456' : undefined,
+        specialization: authResponse.user.role === 'doctor' ? 'Internal Medicine' : undefined,
+        isActive: authResponse.user.isActive,
         lastLogin: new Date().toISOString(),
       };
 
       console.log(`[AuthContext] Authenticated user via auth service:`, {
         email: authenticatedUser.email,
         role: authenticatedUser.role,
-        tokenReceived: !!authData.token
+        tokenReceived: !!authResponse.token,
+        refreshTokenReceived: !!authResponse.data.refreshToken
       });
 
       setUser(authenticatedUser);
       localStorage.setItem("telecheck_user", JSON.stringify(authenticatedUser));
-      localStorage.setItem("auth_token", authData.token);
+      localStorage.setItem("auth_token", authResponse.token);
+      localStorage.setItem("refresh_token", authResponse.data.refreshToken);
       setIsLoading(false);
       return true;
 
@@ -322,10 +313,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      // Call the auth service to logout
+      const { AuthService } = await import('../services/api.service');
+      await AuthService.logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Continue with local logout even if service call fails
+    }
+
     setUser(null);
     localStorage.removeItem("telecheck_user");
-    localStorage.removeItem("auth_token"); // Remove token on logout
+    localStorage.removeItem("auth_token");
+    localStorage.removeItem("refresh_token");
   };
 
   const hasPermission = (permission: string): boolean => {

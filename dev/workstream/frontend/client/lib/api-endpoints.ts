@@ -12,8 +12,11 @@ export const API_ENDPOINTS = {
     REFRESH: '/auth/refresh',
     REGISTER: '/auth/register',
     VERIFY_EMAIL: '/auth/verify-email',
+    REQUEST_PASSWORD_RESET: '/auth/request-password-reset',
     RESET_PASSWORD: '/auth/reset-password',
     CHANGE_PASSWORD: '/auth/change-password',
+    LOGOUT_ALL: '/auth/logout-all',
+    PROFILE: '/auth/profile',
   },
 
   // User Management
@@ -23,6 +26,30 @@ export const API_ENDPOINTS = {
     PREFERENCES: '/users/preferences',
     AVATAR: '/users/avatar',
     DELETE_ACCOUNT: '/users/delete',
+  },
+
+  // Patients
+  PATIENTS: {
+    LIST: '/patients',
+    CREATE: '/patients',
+    GET: (id: string) => `/patients/${id}`,
+    UPDATE: (id: string) => `/patients/${id}`,
+    DELETE: (id: string) => `/patients/${id}`,
+    SEARCH: '/patients/search',
+    STATS: '/patients/stats',
+  },
+
+  // Appointments
+  APPOINTMENTS: {
+    LIST: '/appointments',
+    CREATE: '/appointments',
+    GET: (id: string) => `/appointments/${id}`,
+    UPDATE: (id: string) => `/appointments/${id}`,
+    DELETE: (id: string) => `/appointments/${id}`,
+    RESCHEDULE: (id: string) => `/appointments/${id}/reschedule`,
+    CANCEL: (id: string) => `/appointments/${id}/cancel`,
+    DATE_RANGE: '/appointments/date-range',
+    STATS: '/appointments/stats',
   },
 
   // Lab Results
@@ -226,6 +253,8 @@ export const buildEndpoint = (template: string, params: Record<string, string | 
 export const {
   AUTH,
   USERS,
+  PATIENTS,
+  APPOINTMENTS,
   LABS,
   MEDICATIONS,
   VITALS,

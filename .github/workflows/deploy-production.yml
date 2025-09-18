@@ -1,0 +1,169 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ main, production ]
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Service to deploy (leave empty for all)'
+        required: false
+        type: choice
+        options:
+          - all
+          - auth-service
+          - core-service
+          - ai-ml-service
+          - analytics-service
+          - pms-integrations
+          - ehr-frontend
+          - pms-frontend
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: 901076063012.dkr.ecr.us-east-1.amazonaws.com
+  ECS_CLUSTER: spark-den-cluster
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        service:
+          - name: auth-service
+            path: workstream/auth-security
+            port: 3002
+          - name: core-service
+            path: workstream/core-services
+            port: 3001
+          - name: ai-ml-service
+            path: workstream/ai-ml-services
+            port: 3000
+          - name: analytics-service
+            path: workstream/analytics-reporting
+            port: 3003
+          - name: pms-integrations
+            path: workstream/pms-integrations
+            port: 3004
+          - name: ehr-frontend
+            path: workstream/frontend
+            port: 5173
+          - name: pms-frontend
+            path: workstream/frontend
+            port: 5174
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
+    - name: Cache Docker layers
+      uses: actions/cache@v3
+      with:
+        path: /tmp/.buildx-cache
+        key: ${{ runner.os }}-buildx-${{ matrix.service.name }}-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-buildx-${{ matrix.service.name }}-
+          ${{ runner.os }}-buildx-
+
+    - name: Build and push Docker image
+      if: github.event.inputs.service == 'all' || github.event.inputs.service == matrix.service.name || github.event.inputs.service == ''
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        file: ./prod/dockerfiles/${{ matrix.service.name }}.Dockerfile
+        platforms: linux/amd64
+        push: true
+        tags: |
+          ${{ env.ECR_REGISTRY }}/spark-den/${{ matrix.service.name }}:latest
+          ${{ env.ECR_REGISTRY }}/spark-den/${{ matrix.service.name }}:${{ github.sha }}
+        cache-from: type=local,src=/tmp/.buildx-cache
+        cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+        build-args: |
+          SERVICE_NAME=${{ matrix.service.name }}
+          SERVICE_PORT=${{ matrix.service.port }}
+
+    - name: Move cache
+      if: github.event.inputs.service == 'all' || github.event.inputs.service == matrix.service.name || github.event.inputs.service == ''
+      run: |
+        rm -rf /tmp/.buildx-cache
+        mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+    - name: Update ECS service
+      if: github.event.inputs.service == 'all' || github.event.inputs.service == matrix.service.name || github.event.inputs.service == ''
+      run: |
+        aws ecs update-service \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --service spark-den-${{ matrix.service.name }} \
+          --force-new-deployment \
+          --region ${{ env.AWS_REGION }}
+
+    - name: Wait for service stability
+      if: github.event.inputs.service == 'all' || github.event.inputs.service == matrix.service.name || github.event.inputs.service == ''
+      run: |
+        aws ecs wait services-stable \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --services spark-den-${{ matrix.service.name }} \
+          --region ${{ env.AWS_REGION }}
+
+  health-check:
+    needs: deploy
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Check ALB health
+      run: |
+        response=$(curl -s -o /dev/null -w "%{http_code}" http://spark-den-alb-1679568472.us-east-1.elb.amazonaws.com/)
+        if [ "$response" = "200" ]; then
+          echo "✅ Health check passed (HTTP $response)"
+        else
+          echo "❌ Health check failed (HTTP $response)"
+          exit 1
+        fi
+
+    - name: Check service endpoints
+      run: |
+        endpoints=(
+          "/"
+          "/health"
+          "/api/health"
+        )
+
+        for endpoint in "${endpoints[@]}"; do
+          response=$(curl -s -o /dev/null -w "%{http_code}" http://spark-den-alb-1679568472.us-east-1.elb.amazonaws.com$endpoint)
+          echo "Endpoint $endpoint: HTTP $response"
+        done
+
+  notify:
+    needs: [deploy, health-check]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+    - name: Notify deployment status
+      uses: 8398a7/action-slack@v3
+      if: env.SLACK_WEBHOOK_URL != ''
+      with:
+        status: ${{ job.status }}
+        text: |
+          Deployment ${{ job.status == 'success' && 'successful' || 'failed' }}
+          Branch: ${{ github.ref }}
+          Commit: ${{ github.sha }}
+          Author: ${{ github.actor }}
+        webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

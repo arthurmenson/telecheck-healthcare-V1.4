@@ -1,10 +1,15 @@
 import { z } from 'zod';
+import { appointments } from '@spark-den/database/src/schema/healthcare';
+
+// Infer types from database schema
+export type Appointment = typeof appointments.$inferSelect;
+export type CreateAppointmentDto = Omit<typeof appointments.$inferInsert, 'id' | 'createdAt' | 'updatedAt'>;
+export type UpdateAppointmentDto = Partial<CreateAppointmentDto>;
 
 export const AppointmentSchema = z.object({
   id: z.string().uuid(),
   patientId: z.string().uuid(),
   providerId: z.string().uuid(),
-  facilityId: z.string().uuid().optional(),
   type: z.enum([
     'consultation',
     'follow_up',

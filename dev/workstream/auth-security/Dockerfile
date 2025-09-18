@@ -18,9 +18,6 @@ RUN pnpm install --no-frozen-lockfile && \
 # Copy source code
 COPY . .
 
-# Build the application
-RUN pnpm run build
-
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001

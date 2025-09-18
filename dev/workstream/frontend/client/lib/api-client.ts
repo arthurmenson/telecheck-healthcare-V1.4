@@ -12,7 +12,7 @@ import { ApiResponse } from '../../shared/types';
 
 // API Configuration
 const API_CONFIG = {
-  BASE_URL: import.meta.env.VITE_API_URL || '/api',
+  BASE_URL: import.meta.env.VITE_API_URL || 'http://localhost:3002/api',
   TIMEOUT: 30000,
   MAX_RETRIES: 3,
   RETRY_DELAY: 1000,

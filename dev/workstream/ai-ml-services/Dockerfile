@@ -2,15 +2,15 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install dependencies
-RUN apk add --no-cache python3 make g++
+# Install dependencies and runtime tools
+RUN apk add --no-cache python3 make g++ curl
 RUN npm install -g pnpm
 
 # Copy package files
 COPY package.json ./
 
 # Install dependencies
-RUN pnpm install
+RUN pnpm install --prod
 
 # Copy source code
 COPY . .
@@ -29,5 +29,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:3000/health || exit 1
 
-# Run with tsx directly (no build needed)
+# Run with tsx (TypeScript runtime)
 CMD ["npx", "tsx", "src/index.ts"]

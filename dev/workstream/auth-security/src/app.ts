@@ -1,5 +1,6 @@
 import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { AuthRoutes } from './routes/auth.routes';
 import { SecurityMiddleware } from './middleware/security.middleware';
 
@@ -7,9 +8,9 @@ export class App {
   private app: Application;
   private authRoutes: AuthRoutes;
 
-  constructor() {
+  constructor(db: PostgresJsDatabase<any>) {
     this.app = express();
-    this.authRoutes = new AuthRoutes();
+    this.authRoutes = new AuthRoutes(db);
     this.initializeMiddleware();
     this.initializeRoutes();
     this.initializeErrorHandling();
@@ -21,7 +22,12 @@ export class App {
 
     // CORS configuration
     this.app.use(cors({
-      origin: process.env['CORS_ORIGIN'] || 'http://localhost:3000',
+      origin: [
+        'http://localhost:3000',
+        'http://localhost:5173', // Vite dev server
+        'http://localhost:3002',
+        process.env['CORS_ORIGIN'] || 'http://localhost:3000'
+      ],
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
