@@ -35,16 +35,16 @@ jobs:
 
     - name: Check directory exists
       run: |
-        if [ ! -d "./dev/workstream/${{ matrix.service }}" ]; then
-          echo "Directory ./dev/workstream/${{ matrix.service }} does not exist"
+        if [ ! -d "./workstream/${{ matrix.service }}" ]; then
+          echo "Directory ./workstream/${{ matrix.service }} does not exist"
           echo "Creating directory structure..."
-          mkdir -p ./dev/workstream/${{ matrix.service }}
+          mkdir -p ./workstream/${{ matrix.service }}
           echo "Directory created. Skipping tests for this service."
           exit 0
         fi
 
     - name: Install dependencies
-      working-directory: ./dev/workstream/${{ matrix.service }}
+      working-directory: ./workstream/${{ matrix.service }}
       run: |
         if [ -f "package.json" ]; then
           pnpm install --frozen-lockfile || pnpm install
@@ -53,21 +53,21 @@ jobs:
         fi
 
     - name: Run linting
-      working-directory: ./dev/workstream/${{ matrix.service }}
+      working-directory: ./workstream/${{ matrix.service }}
       run: |
         if [ -f "package.json" ] && grep -q '"lint":' package.json; then
           pnpm run lint || echo "Linting skipped - no lint script"
         fi
 
     - name: Run type checking
-      working-directory: ./dev/workstream/${{ matrix.service }}
+      working-directory: ./workstream/${{ matrix.service }}
       run: |
         if [ -f "tsconfig.json" ]; then
           npx tsc --noEmit || echo "Type checking skipped"
         fi
 
     - name: Run tests
-      working-directory: ./dev/workstream/${{ matrix.service }}
+      working-directory: ./workstream/${{ matrix.service }}
       env:
         CI: true
         NODE_ENV: test
@@ -123,7 +123,7 @@ jobs:
       uses: aws-actions/amazon-ecr-login@v2
 
     - name: Build, tag, and push image to Amazon ECR
-      working-directory: ./dev/workstream/${{ matrix.service }}
+      working-directory: ./workstream/${{ matrix.service }}
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         IMAGE_TAG: ${{ github.sha }}
