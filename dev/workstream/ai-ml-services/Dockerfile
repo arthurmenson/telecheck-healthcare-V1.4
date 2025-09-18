@@ -30,4 +30,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:3000/health || exit 1
 
 # Run with tsx (TypeScript runtime)
-CMD ["npx", "tsx", "src/index.ts"]
+CMD ["npx", "tsx", "src/simple-server.ts"]

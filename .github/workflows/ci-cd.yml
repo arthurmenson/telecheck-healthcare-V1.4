@@ -35,16 +35,16 @@ jobs:
 
     - name: Check directory exists
       run: |
-        if [ ! -d "./workstream/${{ matrix.service }}" ]; then
-          echo "Directory ./workstream/${{ matrix.service }} does not exist"
+        if [ ! -d "./dev/workstream/${{ matrix.service }}" ]; then
+          echo "Directory ./dev/workstream/${{ matrix.service }} does not exist"
           echo "Creating directory structure..."
-          mkdir -p ./workstream/${{ matrix.service }}
+          mkdir -p ./dev/workstream/${{ matrix.service }}
           echo "Directory created. Skipping tests for this service."
           exit 0
         fi
 
     - name: Install dependencies
-      working-directory: ./workstream/${{ matrix.service }}
+      working-directory: ./dev/workstream/${{ matrix.service }}
       run: |
         if [ -f "package.json" ]; then
           pnpm install --frozen-lockfile || pnpm install
@@ -53,21 +53,21 @@ jobs:
         fi
 
     - name: Run linting
-      working-directory: ./workstream/${{ matrix.service }}
+      working-directory: ./dev/workstream/${{ matrix.service }}
       run: |
         if [ -f "package.json" ] && grep -q '"lint":' package.json; then
           pnpm run lint || echo "Linting skipped - no lint script"
         fi
 
     - name: Run type checking
-      working-directory: ./workstream/${{ matrix.service }}
+      working-directory: ./dev/workstream/${{ matrix.service }}
       run: |
         if [ -f "tsconfig.json" ]; then
           npx tsc --noEmit || echo "Type checking skipped"
         fi
 
     - name: Run tests
-      working-directory: ./workstream/${{ matrix.service }}
+      working-directory: ./dev/workstream/${{ matrix.service }}
       env:
         CI: true
         NODE_ENV: test
@@ -97,15 +97,48 @@ jobs:
           echo "No package.json found, skipping tests"
         fi
 
+  terraform-setup:
+    name: Setup Infrastructure
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ~1.0
+
+    - name: Terraform Init and Apply
+      working-directory: ./prod/terraform
+      run: |
+        terraform init
+        terraform apply -auto-approve -target=aws_ecr_repository.service
+
   build-and-deploy:
     name: Build and Deploy
-    needs: test
+    needs: [test, terraform-setup]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
 
     strategy:
       matrix:
-        service: [auth-security, ai-ml-services, core-services, analytics-reporting, pms-integrations, frontend]
+        service:
+          - { workflow: auth-security, terraform: auth-service }
+          - { workflow: ai-ml-services, terraform: ai-ml-service }
+          - { workflow: core-services, terraform: core-service }
+          - { workflow: analytics-reporting, terraform: analytics-service }
+          - { workflow: pms-integrations, terraform: pms-integrations }
+          - { workflow: frontend, terraform: ehr-frontend }
 
     steps:
     - name: Checkout code
@@ -123,28 +156,31 @@ jobs:
       uses: aws-actions/amazon-ecr-login@v2
 
     - name: Build, tag, and push image to Amazon ECR
-      working-directory: ./workstream/${{ matrix.service }}
+      working-directory: ./dev/workstream/${{ matrix.service.workflow }}
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         IMAGE_TAG: ${{ github.sha }}
       run: |
-        echo "Building image for service: ${{ matrix.service }}"
+        echo "Building image for service: ${{ matrix.service.workflow }}"
         echo "ECR Registry: $ECR_REGISTRY"
         echo "Image tag: $IMAGE_TAG"
 
+        # ECR repository name follows Terraform naming: spark-den/service-name
+        REPO_NAME="spark-den/${{ matrix.service.terraform }}"
+
         # Build image for AMD64 platform (required for ECS Fargate)
-        docker build --platform linux/amd64 -t $ECR_REGISTRY/spark-den-${{ matrix.service }}:$IMAGE_TAG .
-        docker tag $ECR_REGISTRY/spark-den-${{ matrix.service }}:$IMAGE_TAG $ECR_REGISTRY/spark-den-${{ matrix.service }}:latest
+        docker build --platform linux/amd64 -t $ECR_REGISTRY/$REPO_NAME:$IMAGE_TAG .
+        docker tag $ECR_REGISTRY/$REPO_NAME:$IMAGE_TAG $ECR_REGISTRY/$REPO_NAME:latest
 
         # Push images to ECR
-        docker push $ECR_REGISTRY/spark-den-${{ matrix.service }}:$IMAGE_TAG
-        docker push $ECR_REGISTRY/spark-den-${{ matrix.service }}:latest
+        docker push $ECR_REGISTRY/$REPO_NAME:$IMAGE_TAG
+        docker push $ECR_REGISTRY/$REPO_NAME:latest
 
-        echo "Successfully pushed ${{ matrix.service }} to ECR"
+        echo "Successfully pushed ${{ matrix.service.workflow }} to ECR"
 
     - name: Update ECS service
       env:
-        SERVICE_NAME: ${{ matrix.service }}
+        SERVICE_NAME: ${{ matrix.service.terraform }}
       timeout-minutes: 15
       run: |
         echo "Updating ECS service: $SERVICE_NAME"
@@ -152,18 +188,18 @@ jobs:
         # Force new deployment with updated image
         aws ecs update-service \
           --cluster $ECS_CLUSTER \
-          --service $SERVICE_NAME \
+          --service spark-den-$SERVICE_NAME \
           --force-new-deployment \
           --region $AWS_REGION \
-          || echo "Warning: Failed to update service $SERVICE_NAME"
+          || echo "Warning: Failed to update service spark-den-$SERVICE_NAME"
 
         # Wait for deployment to become stable (with timeout)
         echo "Waiting for service to stabilize..."
         timeout 600 aws ecs wait services-stable \
           --cluster $ECS_CLUSTER \
-          --services $SERVICE_NAME \
+          --services spark-den-$SERVICE_NAME \
           --region $AWS_REGION \
-          || echo "Warning: Service $SERVICE_NAME did not stabilize in time"
+          || echo "Warning: Service spark-den-$SERVICE_NAME did not stabilize in time"
 
         echo "Service update completed for $SERVICE_NAME"
 
@@ -212,15 +248,15 @@ jobs:
         terraform_version: ~1.0
 
     - name: Terraform Init
-      working-directory: ./dev/terraform
+      working-directory: ./prod/terraform
       run: terraform init
 
     - name: Terraform Plan
-      working-directory: ./dev/terraform
+      working-directory: ./prod/terraform
       run: terraform plan -out=tfplan
 
     - name: Terraform Apply
-      working-directory: ./dev/terraform
+      working-directory: ./prod/terraform
       run: terraform apply -auto-approve tfplan
 
   notify:
