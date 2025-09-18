@@ -1,0 +1,120 @@
+name: Coverage Report
+
+on:
+  push:
+    branches: [ main, infrastructure ]
+  pull_request:
+    branches: [ main, infrastructure ]
+
+jobs:
+  coverage:
+    name: Test Coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run tests with coverage
+      run: npm run test:coverage
+
+    - name: Generate coverage badge
+      uses: codecov/codecov-action@v3
+      with:
+        files: ./coverage/lcov.info
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: true
+
+    - name: Coverage comment on PR
+      if: github.event_name == 'pull_request'
+      uses: romeovs/lcov-reporter-action@v0.3.1
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        lcov-file: ./coverage/lcov.info
+
+    - name: Upload coverage to GitHub
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-report
+        path: |
+          coverage/
+          !coverage/tmp
+
+    - name: Enforce coverage threshold
+      run: |
+        COVERAGE=$(cat coverage/coverage-summary.json | jq '.total.lines.pct')
+        echo "Current coverage: ${COVERAGE}%"
+
+        if (( $(echo "$COVERAGE < 80" | bc -l) )); then
+          echo "❌ Coverage below threshold: ${COVERAGE}% < 80%"
+          exit 1
+        else
+          echo "✅ Coverage meets threshold: ${COVERAGE}% >= 80%"
+        fi
+
+  coverage-diff:
+    name: Coverage Diff
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'pull_request'
+
+    steps:
+    - name: Checkout PR code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run tests with coverage (PR)
+      run: npm run test:coverage
+
+    - name: Store PR coverage
+      run: cp coverage/coverage-summary.json coverage-pr.json
+
+    - name: Checkout base branch
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.base_ref }}
+
+    - name: Install dependencies (base)
+      run: npm ci
+
+    - name: Run tests with coverage (base)
+      run: npm run test:coverage
+
+    - name: Compare coverage
+      run: |
+        BASE_COVERAGE=$(cat coverage/coverage-summary.json | jq '.total.lines.pct')
+        PR_COVERAGE=$(cat coverage-pr.json | jq '.total.lines.pct')
+
+        DIFF=$(echo "$PR_COVERAGE - $BASE_COVERAGE" | bc -l)
+
+        echo "Base coverage: ${BASE_COVERAGE}%"
+        echo "PR coverage: ${PR_COVERAGE}%"
+        echo "Coverage diff: ${DIFF}%"
+
+        if (( $(echo "$DIFF < -2" | bc -l) )); then
+          echo "❌ Coverage decreased significantly: ${DIFF}%"
+          exit 1
+        elif (( $(echo "$DIFF > 0" | bc -l) )); then
+          echo "✅ Coverage improved: +${DIFF}%"
+        else
+          echo "✅ Coverage maintained: ${DIFF}%"
+        fi

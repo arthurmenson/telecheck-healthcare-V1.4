@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      target: development
+      dockerfile: Dockerfile
+    container_name: healthcare-infra-dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - LOG_LEVEL=debug
+    networks:
+      - healthcare-network
+    restart: unless-stopped
+
+  test:
+    build:
+      context: .
+      target: testing
+      dockerfile: Dockerfile
+    container_name: healthcare-infra-test
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=test
+    networks:
+      - healthcare-network
+    command: npm run test:watch
+
+  security-scanner:
+    image: aquasec/trivy:latest
+    container_name: healthcare-security-scan
+    volumes:
+      - .:/workspace
+    working_dir: /workspace
+    command: fs --security-checks vuln,config .
+    networks:
+      - healthcare-network
+    profiles:
+      - security
+
+networks:
+  healthcare-network:
+    driver: bridge
+    name: healthcare-infra
+
+volumes:
+  node_modules:

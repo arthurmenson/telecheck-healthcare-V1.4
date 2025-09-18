@@ -1,0 +1,164 @@
+name: Performance Testing
+
+on:
+  push:
+    branches: [ main, infrastructure ]
+  pull_request:
+    branches: [ main, infrastructure ]
+
+jobs:
+  build-performance:
+    name: Build Performance Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Measure build time
+      id: build_time
+      run: |
+        echo "Build started at: $(date)"
+        START_TIME=$(date +%s)
+        npm run build
+        END_TIME=$(date +%s)
+        BUILD_TIME=$((END_TIME - START_TIME))
+        echo "build_duration=$BUILD_TIME" >> $GITHUB_OUTPUT
+        echo "Build completed in: ${BUILD_TIME} seconds"
+
+        # Fail if build takes longer than 60 seconds
+        if [ $BUILD_TIME -gt 60 ]; then
+          echo "❌ Build time exceeded threshold: ${BUILD_TIME}s > 60s"
+          exit 1
+        else
+          echo "✅ Build time within threshold: ${BUILD_TIME}s <= 60s"
+        fi
+
+    - name: Measure type check time
+      run: |
+        echo "Type checking started at: $(date)"
+        START_TIME=$(date +%s)
+        npm run type-check
+        END_TIME=$(date +%s)
+        TYPECHECK_TIME=$((END_TIME - START_TIME))
+        echo "Type check completed in: ${TYPECHECK_TIME} seconds"
+
+        # Fail if type checking takes longer than 30 seconds
+        if [ $TYPECHECK_TIME -gt 30 ]; then
+          echo "❌ Type check time exceeded threshold: ${TYPECHECK_TIME}s > 30s"
+          exit 1
+        else
+          echo "✅ Type check time within threshold: ${TYPECHECK_TIME}s <= 30s"
+        fi
+
+    - name: Measure test time
+      run: |
+        echo "Testing started at: $(date)"
+        START_TIME=$(date +%s)
+        npm run test
+        END_TIME=$(date +%s)
+        TEST_TIME=$((END_TIME - START_TIME))
+        echo "Tests completed in: ${TEST_TIME} seconds"
+
+        # Fail if tests take longer than 2 minutes
+        if [ $TEST_TIME -gt 120 ]; then
+          echo "❌ Test time exceeded threshold: ${TEST_TIME}s > 120s"
+          exit 1
+        else
+          echo "✅ Test time within threshold: ${TEST_TIME}s <= 120s"
+        fi
+
+    - name: Analyze bundle size
+      run: |
+        npm run build
+        DIST_SIZE=$(du -sh dist/ | cut -f1)
+        DIST_SIZE_BYTES=$(du -s dist/ | cut -f1)
+        echo "Built bundle size: $DIST_SIZE"
+
+        # Convert to MB for comparison (assuming size in KB from du -s)
+        DIST_SIZE_MB=$((DIST_SIZE_BYTES / 1024))
+
+        # Warn if bundle size exceeds 10MB
+        if [ $DIST_SIZE_MB -gt 10240 ]; then
+          echo "⚠️  Bundle size is large: ${DIST_SIZE_MB}KB > 10MB"
+          echo "Consider optimizing bundle size"
+        else
+          echo "✅ Bundle size acceptable: ${DIST_SIZE_MB}KB <= 10MB"
+        fi
+
+  lint-performance:
+    name: Lint Performance Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Measure lint time
+      run: |
+        echo "Linting started at: $(date)"
+        START_TIME=$(date +%s)
+        npm run lint
+        END_TIME=$(date +%s)
+        LINT_TIME=$((END_TIME - START_TIME))
+        echo "Linting completed in: ${LINT_TIME} seconds"
+
+        # Fail if linting takes longer than 15 seconds
+        if [ $LINT_TIME -gt 15 ]; then
+          echo "❌ Lint time exceeded threshold: ${LINT_TIME}s > 15s"
+          exit 1
+        else
+          echo "✅ Lint time within threshold: ${LINT_TIME}s <= 15s"
+        fi
+
+  memory-usage:
+    name: Memory Usage Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Memory usage during build
+      run: |
+        echo "Monitoring memory usage during build..."
+        npm run build &
+        BUILD_PID=$!
+
+        while kill -0 $BUILD_PID 2>/dev/null; do
+          ps -p $BUILD_PID -o pid,rss,vsz,comm --no-headers || true
+          sleep 1
+        done
+
+        wait $BUILD_PID
+        echo "Build process completed"

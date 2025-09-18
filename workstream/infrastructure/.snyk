@@ -1,0 +1,17 @@
+# Snyk (https://snyk.io) policy file
+version: v1.25.0
+
+# Security ignores (if needed)
+ignore: {}
+
+# Patches applied by Snyk
+patch: {}
+
+# Language settings
+language-settings:
+  javascript:
+    # Exclude test files from security scanning
+    ignore:
+      - tests/**/*
+      - '**/*.test.ts'
+      - '**/*.spec.ts'

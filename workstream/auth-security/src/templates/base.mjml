@@ -1,0 +1,55 @@
+<mjml>
+  <mj-head>
+    <mj-title>Telecheck Health</mj-title>
+    <mj-font name="Inter" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" />
+    <mj-attributes>
+      <mj-all font-family="Inter, Arial, sans-serif" />
+      <mj-text font-size="16px" color="#334155" line-height="1.5" />
+      <mj-button font-size="16px" font-weight="600" border-radius="8px" padding="12px 24px" />
+    </mj-attributes>
+    <mj-style>
+      .header { background: linear-gradient(135deg, #0ea5e9 0%, #3b82f6 100%); }
+      .footer { background-color: #f8fafc; }
+      .button-primary { background-color: #3b82f6; color: #ffffff; }
+      .button-primary:hover { background-color: #2563eb; }
+      .text-muted { color: #64748b; font-size: 14px; }
+      .text-small { font-size: 12px; color: #94a3b8; }
+    </mj-style>
+  </mj-head>
+  <mj-body background-color="#f1f5f9">
+    <!-- Header -->
+    <mj-section css-class="header" padding="40px 0">
+      <mj-column>
+        <mj-text align="center" color="#ffffff" font-size="28px" font-weight="700" padding="0">
+          Telecheck Health
+        </mj-text>
+        <mj-text align="center" color="#e2e8f0" font-size="16px" padding="10px 0 0 0">
+          Healthcare Platform
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Main Content -->
+    <mj-section background-color="#ffffff" padding="40px 30px">
+      <mj-column>
+        <!-- Content will be inserted here -->
+        {{{ content }}}
+      </mj-column>
+    </mj-section>
+
+    <!-- Footer -->
+    <mj-section css-class="footer" padding="30px">
+      <mj-column>
+        <mj-text align="center" css-class="text-small" padding="0 0 10px 0">
+          © 2024 Telecheck Health. All rights reserved.
+        </mj-text>
+        <mj-text align="center" css-class="text-small" padding="0">
+          This email was sent to {{ email }}. If you didn't request this email, please ignore it.
+        </mj-text>
+        <mj-text align="center" css-class="text-small" padding="10px 0 0 0">
+          Telecheck Health - Secure Healthcare Platform
+        </mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>
