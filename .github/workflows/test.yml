@@ -1,0 +1,35 @@
+name: Test Workflow
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test-basic:
+    name: Test Basic Workflow
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Test AWS CLI
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_REGION: us-east-1
+      run: |
+        echo "Testing AWS credentials..."
+        aws sts get-caller-identity || echo "AWS credentials not configured"
+
+    - name: List directory structure
+      run: |
+        echo "Repository structure:"
+        ls -la
+        echo ""
+        echo "Dev directory:"
+        ls -la dev/ || echo "dev directory not found"
+        echo ""
+        echo "Checking for workstream:"
+        ls -la dev/workstream/ || echo "workstream directory not found"
