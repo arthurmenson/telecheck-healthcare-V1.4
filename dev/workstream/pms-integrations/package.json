@@ -10,7 +10,7 @@
     "build": "tsc && npm run build:fhir",
     "build:fhir": "node scripts/build-fhir-resources.js",
     "test": "vitest run",
-    "test:watch": "vitest",
+    "test:ci": "vitest run",    "test:watch": "vitest",
     "test:integrations": "npm run test:fhir && npm run test:ehr && npm run test:payer && npm run test:payment",
     "test:fhir": "vitest run --config vitest.fhir.config.ts",
     "test:ehr": "vitest run --config vitest.ehr.config.ts",
