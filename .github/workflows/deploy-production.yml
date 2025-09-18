@@ -84,8 +84,8 @@ jobs:
       if: github.event.inputs.service == 'all' || github.event.inputs.service == matrix.service.name || github.event.inputs.service == ''
       uses: docker/build-push-action@v4
       with:
-        context: .
-        file: ./prod/dockerfiles/${{ matrix.service.name }}.Dockerfile
+        context: ${{ matrix.service.path }}
+        file: ${{ matrix.service.path }}/Dockerfile
         platforms: linux/amd64
         push: true
         tags: |
