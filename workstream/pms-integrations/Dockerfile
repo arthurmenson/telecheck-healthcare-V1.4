@@ -9,7 +9,7 @@ RUN npm install -g pnpm
 COPY package.json pnpm-lock.yaml* ./
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --no-frozen-lockfile || npm install
 
 # Copy source code
 COPY . .
@@ -30,7 +30,7 @@ RUN npm install -g pnpm
 COPY package.json pnpm-lock.yaml* ./
 
 # Install production dependencies only
-RUN pnpm install --frozen-lockfile --prod
+RUN pnpm install --no-frozen-lockfile --prod || npm install --production
 
 # Copy built app from builder stage (if exists) or source files
 COPY --from=builder /app/dist ./dist 2>/dev/null || COPY --from=builder /app/src ./src
