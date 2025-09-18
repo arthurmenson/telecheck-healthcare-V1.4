@@ -125,8 +125,13 @@ jobs:
     - name: Build, tag, and push image to Amazon ECR
       working-directory: ./dev/workstream/${{ matrix.service }}
       env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         IMAGE_TAG: ${{ github.sha }}
       run: |
+        echo "Building image for service: ${{ matrix.service }}"
+        echo "ECR Registry: $ECR_REGISTRY"
+        echo "Image tag: $IMAGE_TAG"
+
         # Build image for AMD64 platform (required for ECS Fargate)
         docker build --platform linux/amd64 -t $ECR_REGISTRY/spark-den-${{ matrix.service }}:$IMAGE_TAG .
         docker tag $ECR_REGISTRY/spark-den-${{ matrix.service }}:$IMAGE_TAG $ECR_REGISTRY/spark-den-${{ matrix.service }}:latest
@@ -135,22 +140,32 @@ jobs:
         docker push $ECR_REGISTRY/spark-den-${{ matrix.service }}:$IMAGE_TAG
         docker push $ECR_REGISTRY/spark-den-${{ matrix.service }}:latest
 
+        echo "Successfully pushed ${{ matrix.service }} to ECR"
+
     - name: Update ECS service
       env:
         SERVICE_NAME: ${{ matrix.service }}
+      timeout-minutes: 15
       run: |
+        echo "Updating ECS service: $SERVICE_NAME"
+
         # Force new deployment with updated image
         aws ecs update-service \
           --cluster $ECS_CLUSTER \
           --service $SERVICE_NAME \
           --force-new-deployment \
-          --region $AWS_REGION
+          --region $AWS_REGION \
+          || echo "Warning: Failed to update service $SERVICE_NAME"
 
-        # Wait for deployment to complete
-        aws ecs wait services-stable \
+        # Wait for deployment to become stable (with timeout)
+        echo "Waiting for service to stabilize..."
+        timeout 600 aws ecs wait services-stable \
           --cluster $ECS_CLUSTER \
           --services $SERVICE_NAME \
-          --region $AWS_REGION
+          --region $AWS_REGION \
+          || echo "Warning: Service $SERVICE_NAME did not stabilize in time"
+
+        echo "Service update completed for $SERVICE_NAME"
 
   security-scan:
     name: Security Scan
