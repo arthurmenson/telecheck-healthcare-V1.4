@@ -1,0 +1,29 @@
+<mj-text font-size="20px" font-weight="600" color="#1e293b" padding="0 0 20px 0">
+  Welcome to Telecheck Health, {{ firstName }}!
+</mj-text>
+
+<mj-text padding="0 0 20px 0">
+  Thank you for registering with Telecheck Health. To complete your account setup and ensure the security of your healthcare information, please verify your email address.
+</mj-text>
+
+<mj-text padding="0 0 30px 0">
+  Click the button below to verify your email address:
+</mj-text>
+
+<mj-button css-class="button-primary" href="{{ verificationUrl }}" padding="0 0 30px 0">
+  Verify Email Address
+</mj-button>
+
+<mj-text css-class="text-muted" padding="0 0 20px 0">
+  If the button doesn't work, you can copy and paste this link into your browser:
+</mj-text>
+
+<mj-text font-size="14px" color="#3b82f6" padding="0 0 30px 0" word-break="break-all">
+  {{ verificationUrl }}
+</mj-text>
+
+<mj-divider border-color="#e2e8f0" padding="20px 0" />
+
+<mj-text css-class="text-muted" font-size="14px" padding="0">
+  <strong>Important:</strong> This verification link will expire in 24 hours for security reasons. If you didn't create an account with Telecheck Health, please ignore this email.
+</mj-text>

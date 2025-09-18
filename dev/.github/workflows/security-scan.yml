@@ -1,0 +1,330 @@
+name: Security Scan
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM UTC
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  code-security:
+    name: Code Security Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better analysis
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run npm audit
+        run: |
+          pnpm audit --audit-level moderate --json > audit-results.json || true
+
+          # Check if there are any vulnerabilities
+          if [ -s audit-results.json ]; then
+            echo "::warning::Security vulnerabilities found in dependencies"
+            cat audit-results.json
+          fi
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript, typescript
+          queries: +security-and-quality
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript"
+
+      - name: Run Semgrep
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: >-
+            p/security-audit
+            p/secrets
+            p/owasp-top-ten
+            p/nodejs
+          generateSarif: "1"
+
+      - name: Upload Semgrep results to GitHub
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: semgrep.sarif
+
+      - name: Check for secrets with Trufflehog
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: main
+          head: HEAD
+          extra_args: --debug --only-verified
+
+  dependency-security:
+    name: Dependency Security Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Snyk to check for vulnerabilities
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=medium
+
+      - name: Upload Snyk results to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: snyk.sarif
+
+  container-security:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      matrix:
+        service:
+          - auth-security
+          - ai-ml-services
+          - core-services
+          - analytics-reporting
+          - pms-integrations
+          - frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./workstream/${{ matrix.service }}
+          file: ./workstream/${{ matrix.service }}/Dockerfile.production
+          push: false
+          tags: spark-den-${{ matrix.service }}:security-scan
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: spark-den-${{ matrix.service }}:security-scan
+          format: 'sarif'
+          output: 'trivy-${{ matrix.service }}.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-${{ matrix.service }}.sarif'
+
+      - name: Run Hadolint for Dockerfile best practices
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: ./workstream/${{ matrix.service }}/Dockerfile.production
+          format: sarif
+          output-file: hadolint-${{ matrix.service }}.sarif
+
+      - name: Upload Hadolint results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: hadolint-${{ matrix.service }}.sarif
+
+  infrastructure-security:
+    name: Infrastructure Security Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0
+
+      - name: Terraform Init
+        run: |
+          cd terraform
+          terraform init -backend=false
+
+      - name: Run Checkov on Terraform
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: terraform
+          framework: terraform
+          output_format: sarif
+          output_file_path: checkov-terraform.sarif
+
+      - name: Upload Checkov results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: checkov-terraform.sarif
+
+      - name: Run tfsec
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: terraform
+          format: sarif
+          soft_fail: true
+
+      - name: Upload tfsec results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: results.sarif
+
+  compliance-check:
+    name: HIPAA Compliance Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: HIPAA Compliance Validation
+        run: |
+          echo "🔒 Running HIPAA compliance checks..."
+
+          # Check for encryption configurations
+          echo "Checking encryption settings..."
+          if grep -r "encrypt.*=.*true" terraform/; then
+            echo "✅ Encryption enabled in Terraform"
+          else
+            echo "❌ Encryption settings not found"
+            exit 1
+          fi
+
+          # Check for audit logging
+          echo "Checking audit logging..."
+          if grep -r "cloudtrail\|flow_log" terraform/; then
+            echo "✅ Audit logging configured"
+          else
+            echo "❌ Audit logging not configured"
+            exit 1
+          fi
+
+          # Check for secure secrets management
+          echo "Checking secrets management..."
+          if grep -r "secretsmanager" terraform/; then
+            echo "✅ AWS Secrets Manager configured"
+          else
+            echo "❌ Secrets Manager not found"
+            exit 1
+          fi
+
+          # Check for network isolation
+          echo "Checking network isolation..."
+          if grep -r "private_subnet" terraform/; then
+            echo "✅ Private subnets configured"
+          else
+            echo "❌ Private subnets not found"
+            exit 1
+          fi
+
+          echo "✅ HIPAA compliance checks passed"
+
+  security-summary:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    needs: [code-security, dependency-security, container-security, infrastructure-security, compliance-check]
+    if: always()
+
+    steps:
+      - name: Security Status Summary
+        run: |
+          echo "## 🔒 Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.code-security.result }}" == "success" ]; then
+            echo "| Code Security | ✅ Pass |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Code Security | ❌ Fail |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.dependency-security.result }}" == "success" ]; then
+            echo "| Dependency Security | ✅ Pass |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Dependency Security | ❌ Fail |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.container-security.result }}" == "success" ]; then
+            echo "| Container Security | ✅ Pass |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Container Security | ❌ Fail |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.infrastructure-security.result }}" == "success" ]; then
+            echo "| Infrastructure Security | ✅ Pass |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Infrastructure Security | ❌ Fail |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.compliance-check.result }}" == "success" ]; then
+            echo "| HIPAA Compliance | ✅ Pass |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| HIPAA Compliance | ❌ Fail |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📊 View detailed results in the Security tab above." >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify on critical failures
+        if: needs.code-security.result == 'failure' || needs.dependency-security.result == 'failure' || needs.compliance-check.result == 'failure'
+        run: |
+          echo "🚨 Critical security issues detected!"
+          echo "Please review the security scan results before proceeding with deployment."
+          # Add critical alert notification here (Slack, email, etc.)

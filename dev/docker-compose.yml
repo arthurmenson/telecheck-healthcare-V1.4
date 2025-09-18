@@ -1,0 +1,261 @@
+services:
+  # Database Services
+  postgres:
+    image: postgres:16-alpine
+    container_name: spark-den-postgres
+    environment:
+      POSTGRES_DB: spark_den_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./workstream/database/scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d spark_den_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - spark-den
+
+  redis:
+    image: redis:7-alpine
+    container_name: spark-den-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - spark-den
+
+  # Backend Services
+  auth-security:
+    build:
+      context: ./workstream/auth-security
+      dockerfile: Dockerfile
+    container_name: spark-den-auth
+    environment:
+      - NODE_ENV=development
+      - PORT=3002
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=spark_den_dev
+      - DB_USER=postgres
+      - DB_PASSWORD=password
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET=dev-jwt-secret-key-change-in-production
+      - JWT_EXPIRES_IN=24h
+      - BCRYPT_ROUNDS=10
+      - SMTP_HOST=mail.telecheckhealth.com
+      - SMTP_PORT=587
+      - SMTP_SECURE=false
+      - SMTP_USER=noreply@telecheckhealth.com
+      - SMTP_PASS=ruqfeh-kencif-giCmo5
+      - EMAIL_FROM=Telecheck Health <noreply@telecheckhealth.com>
+      - FRONTEND_URL=http://localhost:5173
+      - EMAIL_RATE_LIMIT_PER_HOUR=50
+      - EMAIL_RATE_LIMIT_PER_DAY=200
+      - EMAIL_VERIFICATION_TOKEN_EXPIRY=24h
+      - PASSWORD_RESET_TOKEN_EXPIRY=6h
+      - MAX_LOGIN_ATTEMPTS=5
+      - LOCKOUT_TIME_MS=1800000
+    ports:
+      - "3002:3002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - spark-den
+
+  ai-ml-services:
+    build:
+      context: ./workstream/ai-ml-services
+      dockerfile: Dockerfile
+    container_name: spark-den-ai-ml
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=spark_den_dev
+      - DB_USER=postgres
+      - DB_PASSWORD=password
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - AUTH_SERVICE_URL=http://auth-security:3002
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth-security:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - spark-den
+
+  core-services:
+    build:
+      context: ./workstream/core-services
+      dockerfile: Dockerfile
+    container_name: spark-den-core
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=spark_den_dev
+      - DB_USER=postgres
+      - DB_PASSWORD=password
+      - AUTH_SERVICE_URL=http://auth-security:3002
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-security:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - spark-den
+
+  analytics-reporting:
+    build:
+      context: ./workstream/analytics-reporting
+      dockerfile: Dockerfile
+    container_name: spark-den-analytics
+    environment:
+      - NODE_ENV=development
+      - PORT=3003
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=spark_den_dev
+      - DB_USER=postgres
+      - DB_PASSWORD=password
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - AUTH_SERVICE_URL=http://auth-security:3002
+    ports:
+      - "3003:3003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth-security:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - spark-den
+
+  pms-integrations:
+    build:
+      context: ./workstream/pms-integrations
+      dockerfile: Dockerfile
+    container_name: spark-den-integrations
+    environment:
+      - NODE_ENV=development
+      - PORT=3004
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=spark_den_dev
+      - DB_USER=postgres
+      - DB_PASSWORD=password
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - AUTH_SERVICE_URL=http://auth-security:3002
+    ports:
+      - "3004:3004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth-security:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - spark-den
+
+  # Frontend Service
+  frontend:
+    build:
+      context: ./workstream/frontend
+      dockerfile: Dockerfile
+    container_name: spark-den-frontend
+    environment:
+      - NODE_ENV=development
+      - VITE_API_BASE_URL=http://localhost:3001
+      - VITE_AUTH_SERVICE_URL=http://localhost:3002
+      - VITE_AI_SERVICE_URL=http://localhost:3000
+      - VITE_ANALYTICS_SERVICE_URL=http://localhost:3003
+      - VITE_INTEGRATIONS_SERVICE_URL=http://localhost:3004
+    ports:
+      - "5173:5173"
+    depends_on:
+      - auth-security
+      - ai-ml-services
+      - core-services
+      - analytics-reporting
+      - pms-integrations
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5173"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - spark-den
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  spark-den:
+    driver: bridge
+    name: spark-den-network

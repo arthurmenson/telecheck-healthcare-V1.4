@@ -1,0 +1,53 @@
+{
+  "name": "@spark-den/database",
+  "version": "0.1.0",
+  "description": "Type-safe PostgreSQL database layer with Drizzle ORM",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest --coverage",
+    "migrate": "drizzle-kit push:pg",
+    "migrate:generate": "drizzle-kit generate:pg",
+    "migrate:drop": "drizzle-kit drop",
+    "db:studio": "drizzle-kit studio",
+    "seed": "tsx src/scripts/seed.ts",
+    "lint": "eslint src --ext .ts,.tsx",
+    "type-check": "tsc --noEmit",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.29.0",
+    "postgres": "^3.4.3",
+    "zod": "^3.22.4",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "@vitest/coverage-v8": "^1.1.0",
+    "drizzle-kit": "^0.20.7",
+    "eslint": "^8.56.0",
+    "tsx": "^4.6.2",
+    "typescript": "^5.3.3",
+    "vitest": "^1.1.0"
+  },
+  "keywords": [
+    "database",
+    "postgresql",
+    "drizzle",
+    "typescript",
+    "healthcare",
+    "hipaa"
+  ],
+  "author": "Spark Den",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

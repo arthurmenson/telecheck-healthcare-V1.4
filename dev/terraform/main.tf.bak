@@ -1,0 +1,108 @@
+terraform {
+  required_version = ">= 1.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+
+  backend "s3" {
+    # Configure this with your actual S3 bucket for state management
+    # bucket = "spark-den-terraform-state"
+    # key    = "production/terraform.tfstate"
+    # region = "us-east-1"
+    # dynamodb_table = "spark-den-terraform-locks"
+    # encrypt = true
+  }
+}
+
+provider "aws" {
+  region = var.aws_region
+
+  default_tags {
+    tags = {
+      Project     = var.project_name
+      Environment = var.environment
+      ManagedBy   = "terraform"
+      Owner       = "spark-den-platform"
+    }
+  }
+}
+
+# Data sources
+data "aws_availability_zones" "available" {
+  state = "available"
+}
+
+data "aws_caller_identity" "current" {}
+
+# Local values
+locals {
+  account_id         = data.aws_caller_identity.current.account_id
+  availability_zones = slice(data.aws_availability_zones.available.names, 0, 3)
+
+  common_tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+
+  # Service configurations
+  services = {
+    "auth-security" = {
+      port           = 3002
+      cpu            = 512
+      memory         = 1024
+      desired_count  = 2
+      min_capacity   = 1
+      max_capacity   = 10
+      health_check_path = "/health"
+    }
+    "ai-ml-services" = {
+      port           = 3000
+      cpu            = 1024
+      memory         = 2048
+      desired_count  = 2
+      min_capacity   = 1
+      max_capacity   = 5
+      health_check_path = "/health"
+    }
+    "core-services" = {
+      port           = 3001
+      cpu            = 512
+      memory         = 1024
+      desired_count  = 2
+      min_capacity   = 1
+      max_capacity   = 10
+      health_check_path = "/health"
+    }
+    "analytics-reporting" = {
+      port           = 3003
+      cpu            = 512
+      memory         = 1024
+      desired_count  = 2
+      min_capacity   = 1
+      max_capacity   = 5
+      health_check_path = "/health"
+    }
+    "pms-integrations" = {
+      port           = 3004
+      cpu            = 512
+      memory         = 1024
+      desired_count  = 2
+      min_capacity   = 1
+      max_capacity   = 5
+      health_check_path = "/health"
+    }
+    "frontend" = {
+      port           = 80
+      cpu            = 256
+      memory         = 512
+      desired_count  = 2
+      min_capacity   = 1
+      max_capacity   = 10
+      health_check_path = "/"
+    }
+  }
+}
