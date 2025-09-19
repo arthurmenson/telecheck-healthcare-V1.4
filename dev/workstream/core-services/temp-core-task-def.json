@@ -1,0 +1,54 @@
+{
+    "containerDefinitions": [
+        {
+            "name": "core-service",
+            "image": "901076063012.dkr.ecr.us-east-1.amazonaws.com/spark-den-core-services:simple",
+            "cpu": 0,
+            "portMappings": [
+                {
+                    "containerPort": 3001,
+                    "hostPort": 3001,
+                    "protocol": "tcp"
+                }
+            ],
+            "essential": true,
+            "environment": [
+                {
+                    "name": "PORT",
+                    "value": "3001"
+                },
+                {
+                    "name": "NODE_ENV",
+                    "value": "production"
+                }
+            ],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "/ecs/spark-den/core-service",
+                    "awslogs-region": "us-east-1",
+                    "awslogs-stream-prefix": "ecs"
+                }
+            },
+            "healthCheck": {
+                "command": [
+                    "CMD-SHELL",
+                    "curl -f http://localhost:3001/health || exit 1"
+                ],
+                "interval": 30,
+                "timeout": 5,
+                "retries": 3,
+                "startPeriod": 60
+            }
+        }
+    ],
+    "family": "spark-den-core-service",
+    "taskRoleArn": "arn:aws:iam::901076063012:role/spark-den-ecs-task-role",
+    "executionRoleArn": "arn:aws:iam::901076063012:role/spark-den-ecs-task-execution-role",
+    "networkMode": "awsvpc",
+    "requiresCompatibilities": [
+        "EC2"
+    ],
+    "cpu": "512",
+    "memory": "1024"
+}

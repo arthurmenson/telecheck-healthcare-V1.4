@@ -130,7 +130,7 @@ jobs:
 
   build-and-deploy:
     name: Build and Deploy
-    needs: [test, terraform-setup]
+    needs: [test]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
 
@@ -158,6 +158,23 @@ jobs:
     - name: Login to Amazon ECR
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Ensure ECR repository exists
+      run: |
+        REPO_NAME="spark-den/${{ matrix.service.terraform }}"
+        echo "Checking if ECR repository $REPO_NAME exists..."
+
+        if ! aws ecr describe-repositories --repository-names "$REPO_NAME" --region ${{ env.AWS_REGION }} 2>/dev/null; then
+          echo "Repository $REPO_NAME does not exist. Creating..."
+          aws ecr create-repository \
+            --repository-name "$REPO_NAME" \
+            --region ${{ env.AWS_REGION }} \
+            --image-tag-mutability MUTABLE \
+            --image-scanning-configuration scanOnPush=true
+          echo "Repository created successfully"
+        else
+          echo "Repository $REPO_NAME already exists"
+        fi
 
     - name: Build, tag, and push image to Amazon ECR
       working-directory: ./dev/workstream/${{ matrix.service.workflow }}
