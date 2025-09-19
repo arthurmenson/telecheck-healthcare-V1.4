@@ -10,9 +10,18 @@
 
 import { ApiResponse } from '../../shared/types';
 
-// API Configuration
+// API Configuration - use runtime config if available, fallback to build-time env vars
+const getApiUrl = () => {
+  // Check for runtime configuration first
+  if (typeof window !== 'undefined' && (window as any).APP_CONFIG?.API_URL && (window as any).APP_CONFIG.API_URL !== '__API_URL__') {
+    return (window as any).APP_CONFIG.API_URL;
+  }
+  // Fallback to build-time environment variable
+  return import.meta.env.VITE_API_URL || 'http://localhost:3002/api';
+};
+
 const API_CONFIG = {
-  BASE_URL: import.meta.env.VITE_API_URL || 'http://localhost:3002/api',
+  BASE_URL: getApiUrl(),
   TIMEOUT: 30000,
   MAX_RETRIES: 3,
   RETRY_DELAY: 1000,

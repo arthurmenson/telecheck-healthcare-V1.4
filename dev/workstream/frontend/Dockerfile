@@ -24,8 +24,18 @@ RUN ls -la dist/ && test -f dist/index.html
 # Production stage - using nginx to serve static files
 FROM nginx:alpine
 
+# Install runtime dependencies
+RUN apk add --no-cache bash
+
 # Copy built files from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Copy runtime configuration template
+COPY --from=builder /app/public/config.js /usr/share/nginx/html/config.js
+
+# Copy entrypoint script
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 # Copy nginx configuration
 RUN echo 'server { \
@@ -49,4 +59,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 EXPOSE 5173
 
-CMD ["nginx", "-g", "daemon off;"]
+# Use entrypoint script to configure at runtime
+CMD ["/entrypoint.sh"]
