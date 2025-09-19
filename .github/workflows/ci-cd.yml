@@ -106,12 +106,13 @@ jobs:
     strategy:
       matrix:
         service:
-          - { workflow: auth-security, terraform: auth-service }
-          - { workflow: ai-ml-services, terraform: ai-ml-service }
-          - { workflow: core-services, terraform: core-service }
-          - { workflow: analytics-reporting, terraform: analytics-service }
-          - { workflow: pms-integrations, terraform: pms-integrations }
-          - { workflow: frontend, terraform: ehr-frontend }
+          - { workflow: auth-security, terraform: auth-service, ecr: auth-service }
+          - { workflow: ai-ml-services, terraform: ai-ml-service, ecr: ai-ml-service }
+          - { workflow: core-services, terraform: core-service, ecr: core-service }
+          - { workflow: analytics-reporting, terraform: analytics-service, ecr: analytics-service }
+          - { workflow: pms-integrations, terraform: pms-integrations, ecr: pms-integrations }
+          - { workflow: frontend, terraform: ehr-frontend, ecr: ehr-frontend }
+          - { workflow: frontend, terraform: pms-frontend, ecr: pms-frontend }
 
     steps:
     - name: Checkout code
@@ -130,7 +131,7 @@ jobs:
 
     - name: Ensure ECR repository exists
       run: |
-        REPO_NAME="spark-den/${{ matrix.service.terraform }}"
+        REPO_NAME="spark-den/${{ matrix.service.ecr }}"
         echo "Checking if ECR repository $REPO_NAME exists..."
 
         if ! aws ecr describe-repositories --repository-names "$REPO_NAME" --region ${{ env.AWS_REGION }} 2>/dev/null; then
@@ -156,7 +157,7 @@ jobs:
         echo "Image tag: $IMAGE_TAG"
 
         # ECR repository name follows Terraform naming: spark-den/service-name
-        REPO_NAME="spark-den/${{ matrix.service.terraform }}"
+        REPO_NAME="spark-den/${{ matrix.service.ecr }}"
 
         # Build image for AMD64 platform (required for ECS Fargate)
         docker build --platform linux/amd64 -t $ECR_REGISTRY/$REPO_NAME:$IMAGE_TAG .
@@ -185,7 +186,7 @@ jobs:
         TASK_DEF=$(aws ecs describe-task-definition --task-definition $TASK_DEF_ARN --region $AWS_REGION --query taskDefinition)
 
         # Update the image in the task definition
-        NEW_TASK_DEF=$(echo $TASK_DEF | jq --arg IMAGE "$ECR_REGISTRY/spark-den/$SERVICE_NAME:$IMAGE_TAG" '.containerDefinitions[0].image = $IMAGE')
+        NEW_TASK_DEF=$(echo $TASK_DEF | jq --arg IMAGE "$ECR_REGISTRY/spark-den/${{ matrix.service.ecr }}:$IMAGE_TAG" '.containerDefinitions[0].image = $IMAGE')
 
         # Remove fields that shouldn't be in the registration
         NEW_TASK_DEF=$(echo $NEW_TASK_DEF | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
