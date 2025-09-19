@@ -32,7 +32,7 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Copy nginx configuration
 RUN echo 'server { \
-    listen 80; \
+    listen 5173; \
     server_name localhost; \
     root /usr/share/nginx/html; \
     index index.html; \
@@ -48,8 +48,8 @@ RUN echo 'server { \
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:5173/health || exit 1
 
-EXPOSE 80
+EXPOSE 5173
 
 CMD ["nginx", "-g", "daemon off;"]
