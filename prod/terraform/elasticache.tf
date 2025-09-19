@@ -101,7 +101,7 @@ resource "aws_cloudwatch_metric_alarm" "redis_cpu" {
   statistic           = "Average"
   threshold           = "75"
   alarm_description   = "This metric monitors Redis CPU utilization"
-  alarm_actions       = [aws_sns_topic.alerts[0].arn]
+  alarm_actions       = [aws_sns_topic.alerts.arn]
 
   dimensions = {
     CacheClusterId = aws_elasticache_cluster.redis.id
@@ -120,7 +120,7 @@ resource "aws_cloudwatch_metric_alarm" "redis_memory" {
   statistic           = "Average"
   threshold           = "80"
   alarm_description   = "This metric monitors Redis memory usage"
-  alarm_actions       = [aws_sns_topic.alerts[0].arn]
+  alarm_actions       = [aws_sns_topic.alerts.arn]
 
   dimensions = {
     CacheClusterId = aws_elasticache_cluster.redis.id
@@ -139,7 +139,7 @@ resource "aws_cloudwatch_metric_alarm" "redis_evictions" {
   statistic           = "Average"
   threshold           = "100"
   alarm_description   = "This metric monitors Redis evictions"
-  alarm_actions       = [aws_sns_topic.alerts[0].arn]
+  alarm_actions       = [aws_sns_topic.alerts.arn]
 
   dimensions = {
     CacheClusterId = aws_elasticache_cluster.redis.id

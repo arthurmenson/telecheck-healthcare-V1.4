@@ -443,17 +443,6 @@ resource "aws_route53_record" "pms" {
   }
 }
 
-# SNS Topic for Alerts
-resource "aws_sns_topic" "alerts" {
-  count = var.enable_monitoring ? 1 : 0
-
-  name = "${var.project_name}-alerts"
-
-  tags = {
-    Name = "${var.project_name}-alerts"
-  }
-}
-
 # Output ALB DNS
 output "alb_dns_name" {
   value       = aws_lb.main.dns_name

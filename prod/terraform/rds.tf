@@ -103,7 +103,7 @@ resource "aws_cloudwatch_metric_alarm" "database_cpu" {
   statistic           = "Average"
   threshold           = "80"
   alarm_description   = "This metric monitors database CPU utilization"
-  alarm_actions       = [aws_sns_topic.alerts[0].arn]
+  alarm_actions       = [aws_sns_topic.alerts.arn]
 
   dimensions = {
     DBInstanceIdentifier = aws_db_instance.main.id
@@ -122,7 +122,7 @@ resource "aws_cloudwatch_metric_alarm" "database_storage" {
   statistic           = "Average"
   threshold           = "2000000000" # 2GB in bytes
   alarm_description   = "This metric monitors database free storage"
-  alarm_actions       = [aws_sns_topic.alerts[0].arn]
+  alarm_actions       = [aws_sns_topic.alerts.arn]
 
   dimensions = {
     DBInstanceIdentifier = aws_db_instance.main.id
@@ -141,7 +141,7 @@ resource "aws_cloudwatch_metric_alarm" "database_connections" {
   statistic           = "Average"
   threshold           = "40"
   alarm_description   = "This metric monitors database connections"
-  alarm_actions       = [aws_sns_topic.alerts[0].arn]
+  alarm_actions       = [aws_sns_topic.alerts.arn]
 
   dimensions = {
     DBInstanceIdentifier = aws_db_instance.main.id
