@@ -194,17 +194,17 @@ jobs:
 
         echo "Current task definition: $TASK_DEF_ARN"
 
-        # Get the task definition JSON
-        TASK_DEF=$(aws ecs describe-task-definition --task-definition $TASK_DEF_ARN --region $AWS_REGION --query taskDefinition)
+        # Get the task definition JSON and save to file
+        aws ecs describe-task-definition --task-definition $TASK_DEF_ARN --region $AWS_REGION --query taskDefinition > /tmp/task-def.json
 
         # Update the image in the task definition
-        NEW_TASK_DEF=$(echo $TASK_DEF | jq --arg IMAGE "$ECR_REGISTRY/spark-den/${{ matrix.service.ecr }}:$IMAGE_TAG" '.containerDefinitions[0].image = $IMAGE')
+        jq --arg IMAGE "$ECR_REGISTRY/spark-den/${{ matrix.service.ecr }}:$IMAGE_TAG" '.containerDefinitions[0].image = $IMAGE' /tmp/task-def.json > /tmp/new-task-def.json
 
         # Remove fields that shouldn't be in the registration
-        NEW_TASK_DEF=$(echo $NEW_TASK_DEF | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+        jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' /tmp/new-task-def.json > /tmp/register-task-def.json
 
         # Register new task definition
-        NEW_TASK_ARN=$(echo $NEW_TASK_DEF | aws ecs register-task-definition --cli-input-json file:///dev/stdin --region $AWS_REGION --query 'taskDefinition.taskDefinitionArn' --output text)
+        NEW_TASK_ARN=$(aws ecs register-task-definition --cli-input-json file:///tmp/register-task-def.json --region $AWS_REGION --query 'taskDefinition.taskDefinitionArn' --output text)
         echo "Registered new task definition: $NEW_TASK_ARN"
 
         # Update service with new task definition
