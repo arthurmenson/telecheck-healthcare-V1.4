@@ -97,37 +97,6 @@ jobs:
           echo "No package.json found, skipping tests"
         fi
 
-  terraform-setup:
-    name: Setup Infrastructure
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
-
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_version: ~1.5
-
-    - name: Terraform Init and Apply
-      working-directory: ./prod/terraform
-      run: |
-        terraform init
-        # Only create ECR repositories and handle any moved resources
-        terraform apply -auto-approve \
-          -target=aws_ecr_repository.service \
-          -target=aws_sns_topic.alerts \
-          -target=aws_ecr_lifecycle_policy.service
-
   build-and-deploy:
     name: Build and Deploy
     needs: [test]
@@ -199,30 +168,48 @@ jobs:
 
         echo "Successfully pushed ${{ matrix.service.workflow }} to ECR"
 
-    - name: Update ECS service
+    - name: Update ECS Task Definition and Service
       env:
         SERVICE_NAME: ${{ matrix.service.terraform }}
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
       timeout-minutes: 15
       run: |
-        echo "Updating ECS service: $SERVICE_NAME"
+        echo "Updating ECS service: spark-den-$SERVICE_NAME"
 
-        # Force new deployment with updated image
+        # Get current task definition
+        TASK_DEF_ARN=$(aws ecs describe-services --cluster $ECS_CLUSTER --services spark-den-$SERVICE_NAME --region $AWS_REGION --query 'services[0].taskDefinition' --output text)
+        echo "Current task definition: $TASK_DEF_ARN"
+
+        # Get the task definition JSON
+        TASK_DEF=$(aws ecs describe-task-definition --task-definition $TASK_DEF_ARN --region $AWS_REGION --query taskDefinition)
+
+        # Update the image in the task definition
+        NEW_TASK_DEF=$(echo $TASK_DEF | jq --arg IMAGE "$ECR_REGISTRY/spark-den/$SERVICE_NAME:$IMAGE_TAG" '.containerDefinitions[0].image = $IMAGE')
+
+        # Remove fields that shouldn't be in the registration
+        NEW_TASK_DEF=$(echo $NEW_TASK_DEF | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+
+        # Register new task definition
+        NEW_TASK_ARN=$(echo $NEW_TASK_DEF | aws ecs register-task-definition --cli-input-json file:///dev/stdin --region $AWS_REGION --query 'taskDefinition.taskDefinitionArn' --output text)
+        echo "Registered new task definition: $NEW_TASK_ARN"
+
+        # Update service with new task definition
         aws ecs update-service \
           --cluster $ECS_CLUSTER \
           --service spark-den-$SERVICE_NAME \
+          --task-definition $NEW_TASK_ARN \
           --force-new-deployment \
-          --region $AWS_REGION \
-          || echo "Warning: Failed to update service spark-den-$SERVICE_NAME"
+          --region $AWS_REGION
 
-        # Wait for deployment to become stable (with timeout)
-        echo "Waiting for service to stabilize..."
-        timeout 600 aws ecs wait services-stable \
+        # Wait for deployment to stabilize (reduced timeout)
+        echo "Waiting for service to stabilize (max 5 minutes)..."
+        timeout 300 aws ecs wait services-stable \
           --cluster $ECS_CLUSTER \
           --services spark-den-$SERVICE_NAME \
-          --region $AWS_REGION \
-          || echo "Warning: Service spark-den-$SERVICE_NAME did not stabilize in time"
+          --region $AWS_REGION || true
 
-        echo "Service update completed for $SERVICE_NAME"
+        echo "Service update initiated for spark-den-$SERVICE_NAME"
 
   security-scan:
     name: Security Scan
