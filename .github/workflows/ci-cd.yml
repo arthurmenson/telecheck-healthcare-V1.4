@@ -16,6 +16,7 @@ jobs:
     name: Test Services
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         service: [auth-security, ai-ml-services, core-services, analytics-reporting, pms-integrations, frontend]
 
@@ -104,6 +105,7 @@ jobs:
     if: github.ref == 'refs/heads/main'
 
     strategy:
+      fail-fast: false
       matrix:
         service:
           - { workflow: auth-security, terraform: auth-service, ecr: auth-service }

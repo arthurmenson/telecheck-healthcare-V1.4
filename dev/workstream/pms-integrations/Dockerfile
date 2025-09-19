@@ -14,8 +14,8 @@ RUN pnpm install --frozen-lockfile
 # Copy source code
 COPY . .
 
-# Build TypeScript (create dist directory if build fails)
-RUN pnpm run build || npx tsc || mkdir -p dist
+# Build TypeScript
+RUN pnpm run build
 
 # Production stage
 FROM node:20-alpine
@@ -51,5 +51,5 @@ EXPOSE 3004
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:3004/health || exit 1
 
-# Try built JS first, fallback to TypeScript
-CMD ["sh", "-c", "node dist/index.js 2>/dev/null || npx tsx src/index.ts"]
+# Run the application
+CMD ["node", "dist/index.js"]
