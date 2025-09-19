@@ -122,7 +122,11 @@ jobs:
       working-directory: ./prod/terraform
       run: |
         terraform init
-        terraform apply -auto-approve -target=aws_ecr_repository.service
+        # Only create ECR repositories and handle any moved resources
+        terraform apply -auto-approve \
+          -target=aws_ecr_repository.service \
+          -target=aws_sns_topic.alerts \
+          -target=aws_ecr_lifecycle_policy.service
 
   build-and-deploy:
     name: Build and Deploy
