@@ -14,8 +14,8 @@ RUN pnpm install --frozen-lockfile
 # Copy source code
 COPY . .
 
-# Build TypeScript
-RUN pnpm run build || npx tsc || echo "No TypeScript build needed"
+# Build TypeScript (create dist directory if build fails)
+RUN pnpm run build || npx tsc || mkdir -p dist
 
 # Production stage
 FROM node:20-alpine
@@ -32,8 +32,10 @@ COPY package.json pnpm-lock.yaml* ./
 # Install production dependencies only
 RUN pnpm install --frozen-lockfile --prod
 
-# Copy built app from builder stage (if exists) or source files
-COPY --from=builder /app/dist ./dist 2>/dev/null || COPY --from=builder /app/src ./src
+# Copy built app from builder stage
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/src ./src
+COPY --from=builder /app/package.json ./
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
