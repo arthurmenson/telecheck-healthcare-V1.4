@@ -347,5 +347,5 @@ export {
   ChatService,
   ProgramService,
   AnalyticsService,
-  FileService,
+  FileService
 };

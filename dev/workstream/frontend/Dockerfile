@@ -15,8 +15,11 @@ RUN pnpm install --frozen-lockfile
 # Copy source code
 COPY . .
 
-# Build the application
-RUN pnpm run build
+# Build the application (with verbose output to debug issues)
+RUN pnpm run build || (echo "Build failed, checking for common issues..." && \
+    echo "Listing workspace:" && ls -la && \
+    echo "Checking if dist exists:" && ls -la dist 2>/dev/null || echo "dist directory not found" && \
+    exit 1)
 
 # Production stage - using nginx to serve static files
 FROM nginx:alpine
