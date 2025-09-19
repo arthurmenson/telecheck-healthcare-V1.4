@@ -9,7 +9,7 @@ on:
 env:
   AWS_REGION: us-east-1
   ECR_REGISTRY: 901076063012.dkr.ecr.us-east-1.amazonaws.com
-  ECS_CLUSTER: spark-den-staging
+  ECS_CLUSTER: spark-den-cluster
 
 jobs:
   test:
