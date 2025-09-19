@@ -15,14 +15,11 @@ RUN pnpm install --frozen-lockfile
 # Copy source code
 COPY . .
 
-# Build the application
-RUN pnpm run build || echo "Build might have warnings, continuing..."
+# Build the application (fail on error)
+RUN pnpm run build
 
-# Ensure dist directory exists (create a minimal one if build failed)
-RUN if [ ! -d "dist" ]; then \
-    mkdir -p dist && \
-    echo '<!DOCTYPE html><html><head><title>Frontend</title></head><body><h1>Frontend Service</h1></body></html>' > dist/index.html; \
-    fi
+# Verify build output exists
+RUN ls -la dist/ && test -f dist/index.html
 
 # Production stage - using nginx to serve static files
 FROM nginx:alpine
