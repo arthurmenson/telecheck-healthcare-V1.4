@@ -2,7 +2,7 @@
 
 # Domain Configuration
 # Update this with your actual domain name
-domain_name = "sparkden.health"
+domain_name = ""  # Leave empty for HTTP-only access via ALB DNS
 
 # If you already have a Route53 hosted zone, set this to false
 # and provide the zone_id below

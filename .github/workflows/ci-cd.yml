@@ -290,7 +290,7 @@ jobs:
     - name: Deployment notification
       run: |
         if [ "${{ needs.build-and-deploy.result }}" == "success" ]; then
-          echo "✅ Deployment successful! Application available at: http://spark-den-staging-alb-1661305982.us-east-1.elb.amazonaws.com"
+          echo "✅ Deployment successful! Application available at: http://spark-den-alb-1679568472.us-east-1.elb.amazonaws.com"
         else
           echo "❌ Deployment failed. Check the logs above for details."
           exit 1
