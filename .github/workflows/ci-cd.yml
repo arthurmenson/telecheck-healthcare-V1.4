@@ -178,8 +178,20 @@ jobs:
       run: |
         echo "Updating ECS service: spark-den-$SERVICE_NAME"
 
+        # Check if service exists
+        if ! aws ecs describe-services --cluster $ECS_CLUSTER --services spark-den-$SERVICE_NAME --region $AWS_REGION --query 'services[0].status' --output text 2>/dev/null; then
+          echo "Service spark-den-$SERVICE_NAME not found, skipping..."
+          exit 0
+        fi
+
         # Get current task definition
-        TASK_DEF_ARN=$(aws ecs describe-services --cluster $ECS_CLUSTER --services spark-den-$SERVICE_NAME --region $AWS_REGION --query 'services[0].taskDefinition' --output text)
+        TASK_DEF_ARN=$(aws ecs describe-services --cluster $ECS_CLUSTER --services spark-den-$SERVICE_NAME --region $AWS_REGION --query 'services[0].taskDefinition' --output text 2>/dev/null)
+
+        if [ "$TASK_DEF_ARN" == "None" ] || [ -z "$TASK_DEF_ARN" ]; then
+          echo "No task definition found for service. Getting latest task definition family..."
+          TASK_DEF_ARN=$(aws ecs list-task-definitions --family-prefix spark-den-$SERVICE_NAME --region $AWS_REGION --query 'taskDefinitionArns[0]' --output text)
+        fi
+
         echo "Current task definition: $TASK_DEF_ARN"
 
         # Get the task definition JSON
