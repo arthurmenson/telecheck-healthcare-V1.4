@@ -333,19 +333,6 @@ export class FileService {
   }
 }
 
-// Import additional services
+// Import and re-export additional services
 export { PatientService } from './patient.service';
 export { AppointmentService } from './appointment.service';
-
-// Export all services
-export {
-  AuthService,
-  UserService,
-  LabService,
-  MedicationService,
-  VitalService,
-  ChatService,
-  ProgramService,
-  AnalyticsService,
-  FileService
-};
