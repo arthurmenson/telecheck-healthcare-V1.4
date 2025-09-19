@@ -314,7 +314,7 @@ resource "aws_cloudwatch_log_metric_filter" "error_logs" {
 
   name           = "${each.key}-error-filter"
   pattern        = "[ERROR]"
-  log_group_name = aws_cloudwatch_log_group.ecs_logs[each.key].name
+  log_group_name = aws_cloudwatch_log_group.ecs[each.key].name
 
   metric_transformation {
     name      = "${each.key}-error-count"
